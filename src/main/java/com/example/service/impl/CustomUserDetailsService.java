@@ -1,5 +1,6 @@
 package com.example.service.impl;
 
+import com.example.config.CustomUserDetails;
 import com.example.entity.User;
 import com.example.repository.UserRepository;
 
@@ -23,12 +24,6 @@ public class CustomUserDetailsService implements UserDetailsService {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found"));
 
-        return new org.springframework.security.core.userdetails.User(
-                user.getUsername(),
-                user.getPassword(),
-                user.getRoles().stream()
-                        .map(r -> new SimpleGrantedAuthority(r.getName()))
-                        .toList()
-        );
+        return new CustomUserDetails(user);
     }
 }

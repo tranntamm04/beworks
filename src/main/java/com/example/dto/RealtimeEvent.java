@@ -5,7 +5,8 @@ import lombok.Data;
 
 @Data
 @Builder
-public class MemberResponse {
-    private Long userId;
-    private String role;
+public class RealtimeEvent {
+
+    private String type;
+    private Object data;
 }

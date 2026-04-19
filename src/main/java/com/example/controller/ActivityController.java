@@ -1,22 +1,26 @@
 package com.example.controller;
 
-import com.example.entity.Activity;
-import com.example.repository.ActivityRepository;
+import com.example.dto.activity.ActivityResponse;
+import com.example.service.ActivityService;
+
+import com.example.service.CurrentUserService;
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
 @CrossOrigin("*")
 @RestController
-@RequestMapping("/tasks/{taskId}/activities")
+@RequestMapping("/api/activities")
 @RequiredArgsConstructor
 public class ActivityController {
 
-    private final ActivityRepository repo;
+    private final ActivityService activityService;
+    private final CurrentUserService currentUserService;
 
     @GetMapping
-    public List<Activity> get(@PathVariable Long taskId) {
-        return repo.findByTaskIdOrderByCreatedAtDesc(taskId);
+    public List<ActivityResponse> getByTask(@RequestParam Long taskId) {
+        return activityService.getByTask(taskId, currentUserService.get().getId());
     }
 }

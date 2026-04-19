@@ -21,7 +21,7 @@ public class Task {
     private String description;
 
     @Enumerated(EnumType.STRING)
-    private TaskPriority priority;
+    private TaskStatus status;
 
     private LocalDateTime dueDate;
 

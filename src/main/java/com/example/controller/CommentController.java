@@ -1,31 +1,39 @@
 package com.example.controller;
 
-import com.example.dto.CreateCommentRequest;
-import com.example.entity.Comment;
+import com.example.dto.comment.*;
 import com.example.service.CommentService;
+
 import com.example.service.CurrentUserService;
-import org.springframework.stereotype.*;
+import lombok.RequiredArgsConstructor;
+
 import org.springframework.web.bind.annotation.*;
-import lombok.*;
 
 import java.util.List;
 
-@Controller("*")
+@CrossOrigin("*")
 @RestController
-@RequestMapping("/api/tasks/{taskId}/comments")
+@RequestMapping("/api/comments")
 @RequiredArgsConstructor
 public class CommentController {
 
-    private final CommentService service;
-    private final CurrentUserService security;
-
+    private final CommentService commentService;
+    private final CurrentUserService currentUserService;
+    
     @PostMapping
-    public Comment create(@PathVariable Long taskId, @RequestBody CreateCommentRequest req) {
-        return service.create(taskId, req.getContent(), security.get().getId());
+    public CommentResponse create(
+            @RequestParam Long taskId,
+            @RequestBody CommentRequest request
+    ) {
+        return commentService.create(taskId, request, currentUserService.get().getId());
     }
 
     @GetMapping
-    public List<Comment> get(@PathVariable Long taskId) {
-        return service.getByTask(taskId, security.get().getId());
+    public List<CommentResponse> getByTask(@RequestParam Long taskId) {
+        return commentService.getByTask(taskId, currentUserService.get().getId());
+    }
+
+    @DeleteMapping("/{id}")
+    public void delete(@PathVariable Long id) {
+        commentService.delete(id, currentUserService.get().getId());
     }
 }

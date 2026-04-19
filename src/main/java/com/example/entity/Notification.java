@@ -2,17 +2,21 @@ package com.example.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "activities")
+@Table(name = "notifications")
 @Getter @Setter @Builder
 @NoArgsConstructor @AllArgsConstructor
-public class Activity {
+public class Notification {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @ManyToOne(optional = false)
+    private User recipient;
 
     private String type;
 
@@ -22,10 +26,9 @@ public class Activity {
     private Task task;
 
     @ManyToOne
-    private Project project;
+    private Workspace workspace;
 
-    @ManyToOne(optional = false)
-    private User user;
+    private boolean isRead;
 
     private LocalDateTime createdAt;
 }

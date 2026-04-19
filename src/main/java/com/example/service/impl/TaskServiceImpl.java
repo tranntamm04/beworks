@@ -1,9 +1,13 @@
 package com.example.service.impl;
 
+import com.example.dto.task.*;
 import com.example.entity.*;
+import com.example.exception.AppException;
 import com.example.repository.*;
-import com.example.service.*;
+import com.example.service.TaskService;
+
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -13,112 +17,152 @@ import java.util.List;
 @RequiredArgsConstructor
 public class TaskServiceImpl implements TaskService {
 
-    private final TaskRepository taskRepo;
-    private final ProjectRepository projectRepo;
-    private final BoardColumnRepository columnRepo;
-    private final UserRepository userRepo;
-    private final PermissionService permission;
-    private final ActivityRepository activityRepo;
+    private final TaskRepository taskRepository;
+    private final BoardColumnRepository columnRepository;
+    private final UserRepository userRepository;
+    private final WorkspaceMemberRepository memberRepository;
 
     @Override
-    public Task create(String title, Long projectId, Long columnId, Long userId) {
+    public TaskResponse create(Long columnId, TaskRequest request, Long userId) {
 
-        if (title == null || title.trim().isEmpty()) {
-            throw new RuntimeException("Title required");
-        }
+        BoardColumn column = getColumn(columnId);
+        checkMember(column, userId);
 
-        Project project = projectRepo.findById(projectId).orElseThrow();
-
-        permission.get(project.getWorkspace().getId(), userId);
-
-        BoardColumn col = columnRepo.findById(columnId).orElseThrow();
+        int position = taskRepository.findByColumnIdOrderByPositionAsc(columnId).size();
 
         Task task = Task.builder()
-                .title(title)
-                .project(project)
-                .column(col)
-                .createdBy(userRepo.findById(userId).orElseThrow())
+                .title(request.getTitle())
+                .description(request.getDescription())
+                .dueDate(request.getDueDate())
+                .column(column)
+                .project(column.getProject())
+                .position(position)
+                .status(TaskStatus.TODO)
+                .createdBy(getUser(userId))
                 .createdAt(LocalDateTime.now())
-                .position(0)
+                .assignee(getAssignee(request.getAssigneeId()))
                 .build();
 
-        taskRepo.save(task);
+        taskRepository.save(task);
 
-        log(task, userId, "CREATE", "created task");
-
-        return task;
+        return map(task);
     }
 
     @Override
-    public Task move(Long taskId, Long columnId, int position, Long userId) {
+    public List<TaskResponse> getByColumn(Long columnId, Long userId) {
 
-        Task task = taskRepo.findById(taskId).orElseThrow();
+        BoardColumn column = getColumn(columnId);
+        checkMember(column, userId);
 
-        permission.get(task.getProject().getWorkspace().getId(), userId);
-
-        BoardColumn col = columnRepo.findById(columnId).orElseThrow();
-
-        task.setColumn(col);
-        task.setPosition(position);
-
-        log(task, userId, "MOVE", "moved task");
-
-        return taskRepo.save(task);
+        return taskRepository.findByColumnIdOrderByPositionAsc(columnId)
+                .stream().map(this::map).toList();
     }
 
     @Override
-    public Task assign(Long taskId, Long assigneeId, Long userId) {
+    public TaskResponse update(Long taskId, TaskRequest request, Long userId) {
 
-        Task task = taskRepo.findById(taskId).orElseThrow();
+        Task task = getTask(taskId);
+        checkMember(task.getColumn(), userId);
 
-        permission.checkAdmin(task.getProject().getWorkspace().getId(), userId);
+        task.setTitle(request.getTitle());
+        task.setDescription(request.getDescription());
+        task.setDueDate(request.getDueDate());
+        task.setAssignee(getAssignee(request.getAssigneeId()));
 
-        User user = userRepo.findById(assigneeId).orElseThrow();
-
-        task.setAssignee(user);
-
-        log(task, userId, "ASSIGN", "assigned task");
-
-        return taskRepo.save(task);
+        return map(taskRepository.save(task));
     }
 
     @Override
-    public Task update(Long taskId, String title, String description,
-                       TaskPriority priority, Long userId) {
+    public void delete(Long taskId, Long userId) {
 
-        Task task = taskRepo.findById(taskId).orElseThrow();
+        Task task = getTask(taskId);
+        checkMember(task.getColumn(), userId);
 
-        permission.get(task.getProject().getWorkspace().getId(), userId);
-
-        if (title != null) task.setTitle(title);
-        if (description != null) task.setDescription(description);
-        if (priority != null) task.setPriority(priority);
-
-        log(task, userId, "UPDATE", "updated task");
-
-        return taskRepo.save(task);
+        taskRepository.delete(task);
     }
 
     @Override
-    public List<Task> getByProject(Long projectId, Long userId) {
+    public TaskResponse move(Long taskId, TaskMoveRequest request, Long userId) {
 
-        Project p = projectRepo.findById(projectId).orElseThrow();
+        Task task = getTask(taskId);
+        BoardColumn sourceColumn = task.getColumn();
+        BoardColumn targetColumn = getColumn(request.getTargetColumnId());
 
-        permission.get(p.getWorkspace().getId(), userId);
+        checkMember(sourceColumn, userId);
+        checkMember(targetColumn, userId);
 
-        return taskRepo.findByProjectId(projectId);
+        List<Task> sourceTasks = taskRepository.findByColumnIdOrderByPositionAsc(sourceColumn.getId());
+        List<Task> targetTasks = taskRepository.findByColumnIdOrderByPositionAsc(targetColumn.getId());
+
+        sourceTasks.remove(task);
+
+        if (!sourceColumn.getId().equals(targetColumn.getId())) {
+            task.setColumn(targetColumn);
+            targetTasks.add(request.getNewPosition(), task);
+        } else {
+            targetTasks = sourceTasks;
+            targetTasks.add(request.getNewPosition(), task);
+        }
+
+        // reindex source
+        for (int i = 0; i < sourceTasks.size(); i++) {
+            sourceTasks.get(i).setPosition(i);
+        }
+
+        // reindex target
+        for (int i = 0; i < targetTasks.size(); i++) {
+            targetTasks.get(i).setPosition(i);
+        }
+
+        taskRepository.saveAll(sourceTasks);
+        taskRepository.saveAll(targetTasks);
+
+        return map(task);
     }
 
-    private void log(Task task, Long userId, String type, String msg) {
+    // ===== HELPER =====
 
-        activityRepo.save(
-                Activity.builder()
-                        .task(task)
-                        .user(userRepo.findById(userId).orElseThrow())
-                        .type(type)
-                        .message(msg)
-                        .createdAt(LocalDateTime.now())
-                        .build()
+    private Task getTask(Long id) {
+        return taskRepository.findById(id)
+                .orElseThrow(() -> new AppException("Task not found"));
+    }
+
+    private BoardColumn getColumn(Long id) {
+        return columnRepository.findById(id)
+                .orElseThrow(() -> new AppException("Column not found"));
+    }
+
+    private User getUser(Long id) {
+        return userRepository.findById(id)
+                .orElseThrow(() -> new AppException("User not found"));
+    }
+
+    private User getAssignee(Long id) {
+        if (id == null) return null;
+        return getUser(id);
+    }
+
+    private void checkMember(BoardColumn column, Long userId) {
+        boolean isMember = memberRepository.existsByUserIdAndWorkspaceId(
+                userId,
+                column.getProject().getWorkspace().getId()
         );
+
+        if (!isMember) {
+            throw new AppException("Access denied");
+        }
+    }
+
+    private TaskResponse map(Task t) {
+        return TaskResponse.builder()
+                .id(t.getId())
+                .title(t.getTitle())
+                .description(t.getDescription())
+                .status(t.getStatus())
+                .position(t.getPosition())
+                .columnId(t.getColumn().getId())
+                .assigneeId(t.getAssignee() != null ? t.getAssignee().getId() : null)
+                .dueDate(t.getDueDate())
+                .build();
     }
 }

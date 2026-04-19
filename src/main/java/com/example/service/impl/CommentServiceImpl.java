@@ -1,13 +1,13 @@
 package com.example.service.impl;
 
-import com.example.entity.Comment;
-import com.example.entity.Task;
-import com.example.repository.CommentRepository;
-import com.example.repository.TaskRepository;
-import com.example.repository.UserRepository;
-import com.example.service.CommentService;
-import com.example.service.PermissionService;
-import lombok.*;
+import com.example.dto.comment.*;
+import com.example.entity.*;
+import com.example.exception.AppException;
+import com.example.repository.*;
+import com.example.service.*;
+
+import lombok.RequiredArgsConstructor;
+
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -17,35 +17,92 @@ import java.util.List;
 @RequiredArgsConstructor
 public class CommentServiceImpl implements CommentService {
 
-    private final CommentRepository repo;
-    private final TaskRepository taskRepo;
-    private final UserRepository userRepo;
-    private final PermissionService permission;
+    private final CommentRepository commentRepository;
+    private final TaskRepository taskRepository;
+    private final UserRepository userRepository;
+    private final WorkspaceMemberRepository memberRepository;
+    private final ActivityService activityService;
 
     @Override
-    public Comment create(Long taskId, String content, Long userId) {
+    public CommentResponse create(Long taskId, CommentRequest request, Long userId) {
 
-        Task task = taskRepo.findById(taskId).orElseThrow();
+        Task task = getTask(taskId);
+        checkMember(task, userId);
 
-        permission.get(task.getProject().getWorkspace().getId(), userId);
+        User user = getUser(userId);
 
-        return repo.save(
-                Comment.builder()
-                        .content(content)
-                        .task(task)
-                        .user(userRepo.findById(userId).orElseThrow())
-                        .createdAt(LocalDateTime.now())
-                        .build()
+        Comment comment = Comment.builder()
+                .content(request.getContent())
+                .task(task)
+                .user(user)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        commentRepository.save(comment);
+
+        // 🔥 log activity
+        activityService.log(
+                "COMMENT",
+                user.getUsername() + " commented on task",
+                task,
+                task.getProject(),
+                user
         );
+
+        return map(comment);
     }
 
     @Override
-    public List<Comment> getByTask(Long taskId, Long userId) {
+    public List<CommentResponse> getByTask(Long taskId, Long userId) {
 
-        Task task = taskRepo.findById(taskId).orElseThrow();
+        Task task = getTask(taskId);
+        checkMember(task, userId);
 
-        permission.get(task.getProject().getWorkspace().getId(), userId);
+        return commentRepository.findByTaskIdOrderByCreatedAtAsc(taskId)
+                .stream().map(this::map).toList();
+    }
 
-        return repo.findByTaskIdOrderByCreatedAtAsc(taskId);
+    @Override
+    public void delete(Long commentId, Long userId) {
+
+        Comment comment = commentRepository.findById(commentId)
+                .orElseThrow(() -> new AppException("Comment not found"));
+
+        if (!comment.getUser().getId().equals(userId)) {
+            throw new AppException("Only owner can delete comment");
+        }
+
+        commentRepository.delete(comment);
+    }
+
+    // ===== helper =====
+
+    private Task getTask(Long id) {
+        return taskRepository.findById(id)
+                .orElseThrow(() -> new AppException("Task not found"));
+    }
+
+    private User getUser(Long id) {
+        return userRepository.findById(id)
+                .orElseThrow(() -> new AppException("User not found"));
+    }
+
+    private void checkMember(Task task, Long userId) {
+        boolean isMember = memberRepository.existsByUserIdAndWorkspaceId(
+                userId,
+                task.getProject().getWorkspace().getId()
+        );
+
+        if (!isMember) throw new AppException("Access denied");
+    }
+
+    private CommentResponse map(Comment c) {
+        return CommentResponse.builder()
+                .id(c.getId())
+                .content(c.getContent())
+                .taskId(c.getTask().getId())
+                .username(c.getUser().getUsername())
+                .createdAt(c.getCreatedAt())
+                .build();
     }
 }

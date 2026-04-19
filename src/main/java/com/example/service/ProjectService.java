@@ -1,16 +1,21 @@
 package com.example.service;
 
-import com.example.entity.Project;
+import com.example.dto.project.ProjectRequest;
+import com.example.dto.project.ProjectResponse;
 
 import java.util.List;
 
 public interface ProjectService {
 
-    Project create(String name, Long workspaceId, Long userId);
+    ProjectResponse create(Long workspaceId, ProjectRequest request, Long userId);
 
-    List<Project> getByWorkspace(Long workspaceId, Long userId);
+    List<ProjectResponse> getByWorkspace(Long workspaceId, Long userId);
 
-    Project update(Long id, String name, Long userId);
+    ProjectResponse getById(Long projectId, Long userId);
 
-    void delete(Long id, Long userId);
+    ProjectResponse update(Long projectId, ProjectRequest request, Long userId);
+
+    void delete(Long projectId, Long userId);
+
+    void archive(Long projectId, Long userId);
 }

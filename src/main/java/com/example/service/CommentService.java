@@ -1,12 +1,14 @@
 package com.example.service;
 
-import com.example.entity.Comment;
+import com.example.dto.comment.*;
 
 import java.util.List;
 
 public interface CommentService {
 
-    Comment create(Long taskId, String content, Long userId);
+    CommentResponse create(Long taskId, CommentRequest request, Long userId);
 
-    List<Comment> getByTask(Long taskId, Long userId);
+    List<CommentResponse> getByTask(Long taskId, Long userId);
+
+    void delete(Long commentId, Long userId);
 }

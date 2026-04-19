@@ -1,14 +1,14 @@
 package com.example.controller;
 
-import com.example.dto.*;
-import com.example.entity.*;
-import com.example.mapper.TaskMapper;
-import com.example.service.*;
+import com.example.dto.task.*;
+import com.example.service.CurrentUserService;
+import com.example.service.TaskService;
+
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Map;
 
 @CrossOrigin("*")
 @RestController
@@ -16,60 +16,40 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class TaskController {
 
-    private final TaskService service;
-    private final CurrentUserService security;
-
+    private final TaskService taskService;
+    private final CurrentUserService currentUserService;
+    
     @PostMapping
-    public TaskResponse create(@RequestBody CreateTaskRequest req) {
-
-        return TaskMapper.toResponse(
-                service.create(
-                        req.getTitle(),
-                        req.getProjectId(),
-                        req.getColumnId(),
-                        security.get().getId()
-                )
-        );
-    }
-
-    @PutMapping("/{id}/move")
-    public TaskResponse move(@PathVariable Long id, @RequestBody MoveTaskRequest req) {
-        return TaskMapper.toResponse(
-                service.move(
-                        id,
-                        req.getColumnId(),
-                        req.getPosition(),
-                        security.get().getId()
-                )
-        );
-    }
-
-    @PutMapping("/{id}/assign")
-    public TaskResponse assign(@PathVariable Long id, @RequestParam Long userId) {
-        return TaskMapper.toResponse(service.assign(id, userId, security.get().getId()));
-    }
-
-    @PutMapping("/{id}")
-    public TaskResponse update(@PathVariable Long id, @RequestBody Map<String, Object> req) {
-
-        return TaskMapper.toResponse(
-                service.update(id,
-                        (String) req.get("title"),
-                        (String) req.get("description"),
-                        req.get("priority") != null
-                                ? TaskPriority.valueOf(req.get("priority").toString())
-                                : null,
-                        security.get().getId()
-                )
-        );
+    public TaskResponse create(
+            @RequestParam Long columnId,
+            @RequestBody TaskRequest request
+    ) {
+        return taskService.create(columnId, request, currentUserService.get().getId());
     }
 
     @GetMapping
-    public List<TaskResponse> get(@RequestParam Long projectId) {
+    public List<TaskResponse> getByColumn(@RequestParam Long columnId) {
+        return taskService.getByColumn(columnId, currentUserService.get().getId());
+    }
 
-        return service.getByProject(
-                projectId,
-                security.get().getId()
-        ).stream().map(TaskMapper::toResponse).toList();
+    @PutMapping("/{id}")
+    public TaskResponse update(
+            @PathVariable Long id,
+            @RequestBody TaskRequest request
+    ) {
+        return taskService.update(id, request, currentUserService.get().getId());
+    }
+
+    @DeleteMapping("/{id}")
+    public void delete(@PathVariable Long id) {
+        taskService.delete(id, currentUserService.get().getId());
+    }
+
+    @PutMapping("/{id}/move")
+    public TaskResponse move(
+            @PathVariable Long id,
+            @RequestBody TaskMoveRequest request
+    ) {
+        return taskService.move(id, request, currentUserService.get().getId());
     }
 }

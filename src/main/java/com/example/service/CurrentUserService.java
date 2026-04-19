@@ -1,5 +1,6 @@
 package com.example.service;
 
+import com.example.config.CustomUserDetails;
 import com.example.entity.User;
 import com.example.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -23,11 +24,6 @@ public class CurrentUserService {
             throw new RuntimeException("Unauthorized");
         }
 
-        var userDetails =
-                (org.springframework.security.core.userdetails.User)
-                        auth.getPrincipal();
-
-        return userRepository.findByUsername(userDetails.getUsername())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        return ((CustomUserDetails) auth.getPrincipal()).getUser();
     }
 }

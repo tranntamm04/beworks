@@ -1,13 +1,14 @@
 package com.example.controller;
 
-import com.example.entity.Project;
+import com.example.dto.project.*;
 import com.example.service.CurrentUserService;
 import com.example.service.ProjectService;
+
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Map;
 
 @CrossOrigin("*")
 @RestController
@@ -15,27 +16,36 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class ProjectController {
 
-    private final ProjectService service;
-    private final CurrentUserService security;
-
+    private final ProjectService projectService;
+    private final CurrentUserService currentUserService;
+    
     @PostMapping
-    public Project create(@RequestBody Map<String, Object> req) {
-        return service.create((String) req.get("name"), Long.valueOf(req.get("workspaceId").toString()), security.get().getId());
+    public ProjectResponse create(@RequestParam Long workspaceId, @RequestBody ProjectRequest request) {
+        return projectService.create(workspaceId, request, currentUserService.get().getId());
     }
 
     @GetMapping
-    public List<Project> get(@RequestParam Long workspaceId) {
-        return service.getByWorkspace(workspaceId, security.get().getId());
+    public List<ProjectResponse> getByWorkspace(@RequestParam Long workspaceId) {
+        return projectService.getByWorkspace(workspaceId, currentUserService.get().getId());
+    }
+
+    @GetMapping("/{id}")
+    public ProjectResponse get(@PathVariable Long id) {
+        return projectService.getById(id, currentUserService.get().getId());
     }
 
     @PutMapping("/{id}")
-    public Project update(@PathVariable Long id, @RequestBody Map<String, String> req) {
-        return service.update(id, req.get("name"), security.get().getId()
-        );
+    public ProjectResponse update(@PathVariable Long id, @RequestBody ProjectRequest request) {
+        return projectService.update(id, request, currentUserService.get().getId());
     }
 
     @DeleteMapping("/{id}")
     public void delete(@PathVariable Long id) {
-        service.delete(id, security.get().getId());
+        projectService.delete(id, currentUserService.get().getId());
+    }
+
+    @PutMapping("/{id}/archive")
+    public void archive(@PathVariable Long id) {
+        projectService.archive(id, currentUserService.get().getId());
     }
 }
