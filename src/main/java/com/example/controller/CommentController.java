@@ -20,10 +20,7 @@ public class CommentController {
     private final CurrentUserService currentUserService;
     
     @PostMapping
-    public CommentResponse create(
-            @RequestParam Long taskId,
-            @RequestBody CommentRequest request
-    ) {
+    public CommentResponse create(@RequestParam Long taskId, @RequestBody CommentRequest request) {
         return commentService.create(taskId, request, currentUserService.get().getId());
     }
 
